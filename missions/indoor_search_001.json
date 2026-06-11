@@ -1,0 +1,73 @@
+{
+  "mission_id": "indoor_search_001",
+  "schema_version": 1,
+  "tick_rate_hz": 10,
+  "seed": 424242,
+  "failure_policy": {
+    "missed_update_threshold_ticks": 5,
+    "reassignment": "greedy_nearest",
+    "on_unrecoverable": "hold"
+  },
+  "agents": [
+    {
+      "id": "scout-1",
+      "display_name": "Scout-1",
+      "start": {"x": 0, "y": 0}
+    },
+    {
+      "id": "scout-2",
+      "display_name": "Scout-2",
+      "start": {"x": 4, "y": 0}
+    },
+    {
+      "id": "scout-3",
+      "display_name": "Scout-3",
+      "start": {"x": 8, "y": 0}
+    }
+  ],
+  "zones": [
+    {
+      "id": "zone-a",
+      "display_name": "Zone A",
+      "cells": ["a1", "a2", "a3"]
+    },
+    {
+      "id": "zone-b",
+      "display_name": "Zone B",
+      "cells": ["b1", "b2", "b3"]
+    },
+    {
+      "id": "zone-c",
+      "display_name": "Zone C",
+      "cells": ["c1", "c2", "c3"]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-zone-a",
+      "zone_id": "zone-a"
+    },
+    {
+      "id": "task-zone-b",
+      "zone_id": "zone-b"
+    },
+    {
+      "id": "task-zone-c",
+      "zone_id": "zone-c"
+    }
+  ],
+  "initial_assignments": [
+    {
+      "agent_id": "scout-1",
+      "task_id": "task-zone-a"
+    },
+    {
+      "agent_id": "scout-2",
+      "task_id": "task-zone-b"
+    },
+    {
+      "agent_id": "scout-3",
+      "task_id": "task-zone-c"
+    }
+  ]
+}
