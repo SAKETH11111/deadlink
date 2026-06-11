@@ -1,0 +1,24 @@
+{
+  "mission_id": "duplicate_agent_ids",
+  "schema_version": 1,
+  "tick_rate_hz": 10,
+  "seed": 1,
+  "failure_policy": {
+    "missed_update_threshold_ticks": 5,
+    "reassignment": "greedy_nearest",
+    "on_unrecoverable": "hold"
+  },
+  "agents": [
+    {"id": "scout-1", "display_name": "Scout-1", "start": {"x": 0, "y": 0}},
+    {"id": "scout-1", "display_name": "Scout-1 duplicate", "start": {"x": 1, "y": 0}}
+  ],
+  "zones": [
+    {"id": "zone-a", "display_name": "Zone A", "cells": ["a1"]}
+  ],
+  "tasks": [
+    {"id": "task-zone-a", "zone_id": "zone-a"}
+  ],
+  "initial_assignments": [
+    {"agent_id": "scout-1", "task_id": "task-zone-a"}
+  ]
+}
