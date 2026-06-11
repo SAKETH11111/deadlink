@@ -6,6 +6,19 @@ from typing import Literal
 
 import msgspec
 
+HASHED_CONTRACT_FIELDS = (
+    "mission_id",
+    "schema_version",
+    "tick_rate_hz",
+    "seed",
+    "failure_policy",
+    "agents",
+    "zones",
+    "tasks",
+    "initial_assignments",
+)
+DERIVED_CONTRACT_FIELDS = ("initial_zone_state", "initial_task_state")
+
 
 class ContractValidationError(ValueError):
     """Raised when a mission contract is structurally valid JSON but invalid."""
@@ -74,7 +87,19 @@ class MissionContract(msgspec.Struct, forbid_unknown_fields=True):
 
 def parse_mission_contract_json(raw: bytes) -> MissionContract:
     try:
-        contract = msgspec.json.decode(raw, type=MissionContract)
+        parsed = msgspec.json.decode(raw)
+    except msgspec.DecodeError as exc:
+        raise ContractValidationError(f"malformed JSON: {exc}") from exc
+
+    if not isinstance(parsed, dict):
+        raise ContractValidationError("invalid contract schema: root must be an object")
+
+    for field in DERIVED_CONTRACT_FIELDS:
+        if field in parsed:
+            raise ContractValidationError(f"derived field is not accepted in mission contract: {field}")
+
+    try:
+        contract = msgspec.convert(parsed, type=MissionContract)
     except msgspec.ValidationError as exc:
         raise ContractValidationError(_normalize_msgspec_error(str(exc))) from exc
 
@@ -83,19 +108,8 @@ def parse_mission_contract_json(raw: bytes) -> MissionContract:
 
 
 def canonical_contract_hash(contract: MissionContract) -> str:
-    plain = msgspec.to_builtins(
-        MissionContract(
-            mission_id=contract.mission_id,
-            schema_version=contract.schema_version,
-            tick_rate_hz=contract.tick_rate_hz,
-            seed=contract.seed,
-            failure_policy=contract.failure_policy,
-            agents=contract.agents,
-            zones=contract.zones,
-            tasks=contract.tasks,
-            initial_assignments=contract.initial_assignments,
-        )
-    )
+    builtins = msgspec.to_builtins(contract)
+    plain = {field: builtins[field] for field in HASHED_CONTRACT_FIELDS}
     canonical = json.dumps(plain, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(canonical).hexdigest()
 
@@ -109,6 +123,10 @@ def _validate_contract(contract: MissionContract) -> None:
         contract.failure_policy.missed_update_threshold_ticks > 0,
         "invalid failure_policy.missed_update_threshold_ticks",
     )
+    _require(contract.agents, "mission must define at least one agent")
+    _require(contract.zones, "mission must define at least one zone")
+    _require(contract.tasks, "mission must define at least one task")
+    _require(contract.initial_assignments, "mission must define at least one initial assignment")
 
     agent_ids = _unique_ids((agent.id for agent in contract.agents), "agent")
     zone_ids = _unique_ids((zone.id for zone in contract.zones), "zone")

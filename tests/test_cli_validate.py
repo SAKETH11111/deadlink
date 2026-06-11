@@ -36,3 +36,10 @@ def test_validate_rejects_invalid_fixture_with_nonzero_exit() -> None:
 
     assert result.returncode != 0
     assert "duplicate agent id" in result.stderr
+
+
+def test_validate_rejects_malformed_json_with_named_violation() -> None:
+    result = run_cli("validate", "missions/invalid/malformed.json")
+
+    assert result.returncode != 0
+    assert "malformed JSON" in result.stderr

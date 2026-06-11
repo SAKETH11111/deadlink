@@ -44,7 +44,9 @@ def test_initial_event_registry_is_closed_for_story_1_1() -> None:
 def test_mission_created_is_seq_zero_tick_zero_and_self_contained() -> None:
     contract = load_mission_contract(MISSION)
 
-    event = create_mission_created(run_id="run-001", contract=contract)
+    builder = EventBuilder(run_id="run-001", mission_id=contract.mission_id)
+
+    event = create_mission_created(builder=builder, contract=contract)
 
     assert event.seq == 0
     assert event.tick == 0
@@ -56,10 +58,11 @@ def test_mission_created_is_seq_zero_tick_zero_and_self_contained() -> None:
     assert event.payload["contract_hash"] == canonical_contract_hash(contract)
 
 
-def test_event_builder_assigns_gapless_monotonic_sequences() -> None:
+def test_event_builder_assigns_gapless_monotonic_sequences_from_mission_created() -> None:
     contract = load_mission_contract(MISSION)
     builder = EventBuilder(run_id="run-001", mission_id=contract.mission_id)
 
+    created = builder.mission_created(contract=contract)
     first = builder.emit(
         event_type="mission.started",
         tick=0,
@@ -74,5 +77,17 @@ def test_event_builder_assigns_gapless_monotonic_sequences() -> None:
         payload={"display_name": "Scout-1"},
     )
 
-    assert [first.seq, second.seq] == [0, 1]
-    assert [first.tick, second.tick] == [0, 0]
+    assert [created.seq, first.seq, second.seq] == [0, 1, 2]
+    assert [created.tick, first.tick, second.tick] == [0, 0, 0]
+
+
+def test_event_builder_rejects_negative_ticks() -> None:
+    builder = EventBuilder(run_id="run-001", mission_id="indoor_search_001")
+
+    with pytest.raises(EventValidationError, match="negative tick"):
+        builder.emit(
+            event_type="mission.started",
+            tick=-1,
+            source="driver",
+            payload={},
+        )

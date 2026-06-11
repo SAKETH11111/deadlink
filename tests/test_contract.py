@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 
 from deadlink.contracts import load_mission_contract
-from deadlink.core.contract import ContractValidationError, canonical_contract_hash
+from deadlink.core.contract import (
+    DERIVED_CONTRACT_FIELDS,
+    HASHED_CONTRACT_FIELDS,
+    ContractValidationError,
+    MissionContract,
+    canonical_contract_hash,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,8 +36,11 @@ def test_loads_canonical_mission_with_explicit_state_shapes() -> None:
     [
         ("duplicate_agent_ids.json", "duplicate agent id"),
         ("unknown_assignment_agent.json", "unknown agent id"),
+        ("unknown_assignment_task.json", "unknown task id"),
+        ("unknown_task_zone.json", "unknown zone id"),
         ("missing_required_field.json", "missing required field"),
         ("invalid_policy_value.json", "invalid failure_policy.reassignment"),
+        ("malformed.json", "malformed JSON"),
     ],
 )
 def test_invalid_contracts_fail_with_named_violations(fixture: str, expected: str) -> None:
@@ -50,3 +59,41 @@ def test_contract_hash_uses_canonical_parsed_representation(tmp_path: Path) -> N
     second = load_mission_contract(reformatted)
 
     assert canonical_contract_hash(first) == canonical_contract_hash(second)
+
+
+def test_empty_mission_sections_are_rejected(tmp_path: Path) -> None:
+    raw = json.loads(MISSION.read_text())
+    raw["agents"] = []
+    raw["zones"] = []
+    raw["tasks"] = []
+    raw["initial_assignments"] = []
+    empty = tmp_path / "empty.json"
+    empty.write_text(json.dumps(raw))
+
+    with pytest.raises(ContractValidationError, match="at least one agent"):
+        load_mission_contract(empty)
+
+
+def test_authored_derived_initial_state_is_rejected(tmp_path: Path) -> None:
+    raw = json.loads(MISSION.read_text())
+    raw["initial_zone_state"] = {}
+    with_state = tmp_path / "with_state.json"
+    with_state.write_text(json.dumps(raw))
+
+    with pytest.raises(ContractValidationError, match="derived field is not accepted"):
+        load_mission_contract(with_state)
+
+
+def test_hash_field_set_is_pinned() -> None:
+    assert HASHED_CONTRACT_FIELDS == (
+        "mission_id",
+        "schema_version",
+        "tick_rate_hz",
+        "seed",
+        "failure_policy",
+        "agents",
+        "zones",
+        "tasks",
+        "initial_assignments",
+    )
+    assert set(MissionContract.__struct_fields__) == set(HASHED_CONTRACT_FIELDS) | set(DERIVED_CONTRACT_FIELDS)

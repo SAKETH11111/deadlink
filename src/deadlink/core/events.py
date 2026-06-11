@@ -50,6 +50,21 @@ class EventBuilder:
         self._mission_id = mission_id
         self._next_seq = 0
 
+    def mission_created(self, *, contract: MissionContract) -> MissionEvent:
+        if contract.mission_id != self._mission_id:
+            raise EventValidationError(
+                f"contract mission id {contract.mission_id} does not match builder mission id {self._mission_id}"
+            )
+        return self.emit(
+            event_type="mission.created",
+            tick=0,
+            source="driver",
+            payload={
+                "seed": contract.seed,
+                "contract_hash": canonical_contract_hash(contract),
+            },
+        )
+
     def emit(
         self,
         *,
@@ -64,6 +79,8 @@ class EventBuilder:
         causal_event_id: str | None = None,
     ) -> MissionEvent:
         validate_event_type(event_type)
+        if tick < 0:
+            raise EventValidationError(f"invalid negative tick: {tick}")
         event = MissionEvent(
             seq=self._next_seq,
             tick=tick,
@@ -82,20 +99,8 @@ class EventBuilder:
         return event
 
 
-def create_mission_created(*, run_id: str, contract: MissionContract) -> MissionEvent:
-    validate_event_type("mission.created")
-    return MissionEvent(
-        seq=0,
-        tick=0,
-        run_id=run_id,
-        mission_id=contract.mission_id,
-        event_type="mission.created",
-        source="driver",
-        payload={
-            "seed": contract.seed,
-            "contract_hash": canonical_contract_hash(contract),
-        },
-    )
+def create_mission_created(*, builder: EventBuilder, contract: MissionContract) -> MissionEvent:
+    return builder.mission_created(contract=contract)
 
 
 def validate_event_type(event_type: str) -> None:

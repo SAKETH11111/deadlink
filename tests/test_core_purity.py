@@ -10,15 +10,24 @@ CORE = ROOT / "src" / "deadlink" / "core"
 FORBIDDEN_ROOT_IMPORTS = {
     "asyncio",
     "datetime",
+    "fastapi",
+    "flask",
     "http",
+    "httpx",
+    "io",
+    "litestar",
+    "os",
     "pathlib",
     "random",
     "requests",
+    "secrets",
     "socket",
+    "starlette",
     "subprocess",
     "sys",
     "time",
     "urllib",
+    "uuid",
 }
 
 FORBIDDEN_NAMES = {
