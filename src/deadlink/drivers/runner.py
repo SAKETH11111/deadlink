@@ -109,8 +109,6 @@ def run_mission(
                 authority_epoch=telemetry.authority_epoch,
                 payload={
                     "position": msgspec.to_builtins(telemetry.position),
-                    "current_task_id": telemetry.task_id,
-                    "current_zone_id": telemetry.zone_id,
                     "battery_pct": telemetry.battery_pct,
                 },
             )

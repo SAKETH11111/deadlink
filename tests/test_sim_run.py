@@ -4,6 +4,9 @@ from collections import defaultdict
 from pathlib import Path
 
 from deadlink.contracts import load_mission_contract
+from deadlink.core.coverage import cell_center
+from deadlink.core.events import EventBuilder
+from deadlink.core.state import initial_state, reduce
 from deadlink.drivers.runner import run_mission
 
 
@@ -61,3 +64,28 @@ def test_initial_task_assignments_are_deterministic_and_self_describing() -> Non
         ("scout-3", "zone-c", "task-zone-c", 0, 0),
     ]
     assert all(event.causal_event_id for event in assignments)
+
+
+def test_telemetry_without_authority_epoch_updates_link_but_does_not_progress() -> None:
+    contract = load_mission_contract(MISSION)
+    state = initial_state(contract)
+    zone = contract.zones[0]
+    position = cell_center(zone, zone.cells[0])
+    event = EventBuilder(run_id="epoch-test", mission_id=contract.mission_id).emit(
+        event_type="agent.telemetry.updated",
+        tick=1,
+        source="driver",
+        agent_id="scout-1",
+        task_id="task-zone-a",
+        zone_id="zone-a",
+        payload={
+            "position": {"x": position.x, "y": position.y},
+            "battery_pct": 99.0,
+        },
+    )
+
+    reduced = reduce(state, event)
+
+    assert reduced.agents["scout-1"].last_seen_tick == 1
+    assert reduced.tasks["task-zone-a"].visited_count == 0
+    assert reduced.zones["zone-a"].visited_cells == ()

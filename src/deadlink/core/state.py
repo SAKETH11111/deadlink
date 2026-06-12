@@ -62,7 +62,6 @@ class ProgressDelta(msgspec.Struct, forbid_unknown_fields=True):
 
 
 def initial_state(contract: MissionContract) -> MissionState:
-    tasks_by_id = {task.id: task for task in contract.tasks}
     assignments_by_agent = {assignment.agent_id: assignment for assignment in contract.initial_assignments}
     assignments_by_task = {assignment.task_id: assignment for assignment in contract.initial_assignments}
     zones_by_task = {task.id: task.zone_id for task in contract.tasks}
@@ -106,7 +105,7 @@ def initial_state(contract: MissionContract) -> MissionState:
     tasks: dict[str, TaskState] = {}
     for task in contract.tasks:
         owner_agent_id = assignments_by_task.get(task.id).agent_id if task.id in assignments_by_task else None
-        zone = zones[tasks_by_id[task.id].zone_id]
+        zone = zones[task.zone_id]
         tasks[task.id] = TaskState(
             task_id=task.id,
             zone_id=task.zone_id,
@@ -127,7 +126,7 @@ def initial_state(contract: MissionContract) -> MissionState:
 
 def reduce(state: MissionState, event: MissionEvent) -> MissionState:
     if event.event_type == "mission.started":
-        return _replace_state(state, mission_status="started")
+        return msgspec.structs.replace(state, mission_status="started")
     if event.event_type == "agent.registered":
         return state
     if event.event_type == "link.health.updated" and event.agent_id:
@@ -137,9 +136,9 @@ def reduce(state: MissionState, event: MissionEvent) -> MissionState:
     if event.event_type == "agent.telemetry.updated" and event.agent_id:
         return _reduce_telemetry(state, event)
     if event.event_type == "mission.completed":
-        return _replace_state(state, mission_status="complete", completed_tick=event.tick)
+        return msgspec.structs.replace(state, mission_status="complete", completed_tick=event.tick)
     if event.event_type == "mission.aborted":
-        return _replace_state(state, mission_status="aborted", completed_tick=event.tick)
+        return msgspec.structs.replace(state, mission_status="aborted", completed_tick=event.tick)
     return state
 
 
@@ -170,13 +169,13 @@ def all_zones_complete(state: MissionState) -> bool:
 
 def _reduce_link_health(state: MissionState, event: MissionEvent) -> MissionState:
     agent = state.agents[event.agent_id or ""]
-    updated = _replace_agent(
+    updated = msgspec.structs.replace(
         agent,
         link_status=event.payload.get("status", agent.link_status),
     )
     agents = dict(state.agents)
     agents[agent.agent_id] = updated
-    return _replace_state(state, agents=agents)
+    return msgspec.structs.replace(state, agents=agents)
 
 
 def _reduce_task_assigned(state: MissionState, event: MissionEvent) -> MissionState:
@@ -185,7 +184,7 @@ def _reduce_task_assigned(state: MissionState, event: MissionEvent) -> MissionSt
     zone = state.zones[event.zone_id or ""]
 
     agents = dict(state.agents)
-    agents[agent.agent_id] = _replace_agent(
+    agents[agent.agent_id] = msgspec.structs.replace(
         agent,
         current_task_id=task.task_id,
         current_zone_id=zone.zone_id,
@@ -193,19 +192,19 @@ def _reduce_task_assigned(state: MissionState, event: MissionEvent) -> MissionSt
     )
 
     tasks = dict(state.tasks)
-    tasks[task.task_id] = _replace_task(task, owner_agent_id=agent.agent_id, status="assigned")
+    tasks[task.task_id] = msgspec.structs.replace(task, owner_agent_id=agent.agent_id, status="assigned")
 
     zones = dict(state.zones)
-    zones[zone.zone_id] = _replace_zone(zone, owner_agent_id=agent.agent_id)
+    zones[zone.zone_id] = msgspec.structs.replace(zone, owner_agent_id=agent.agent_id)
 
-    return _replace_state(state, agents=agents, zones=zones, tasks=tasks)
+    return msgspec.structs.replace(state, agents=agents, zones=zones, tasks=tasks)
 
 
 def _reduce_telemetry(state: MissionState, event: MissionEvent) -> MissionState:
     agent = state.agents[event.agent_id or ""]
     position_raw = event.payload["position"]
     position = Point(x=float(position_raw["x"]), y=float(position_raw["y"]))
-    updated_agent = _replace_agent(
+    updated_agent = msgspec.structs.replace(
         agent,
         position=position,
         last_seen_tick=event.tick,
@@ -215,11 +214,11 @@ def _reduce_telemetry(state: MissionState, event: MissionEvent) -> MissionState:
 
     agents = dict(state.agents)
     agents[agent.agent_id] = updated_agent
-    next_state = _replace_state(state, agents=agents)
+    next_state = msgspec.structs.replace(state, agents=agents)
 
     if agent.current_task_id is None or agent.current_zone_id is None:
         return next_state
-    if event.authority_epoch is not None and event.authority_epoch != agent.authority_epoch:
+    if event.authority_epoch is None or event.authority_epoch != agent.authority_epoch:
         return next_state
 
     zone = next_state.zones[agent.current_zone_id]
@@ -230,64 +229,14 @@ def _reduce_telemetry(state: MissionState, event: MissionEvent) -> MissionState:
     visited_cells = zone.visited_cells + (cell_id,)
     zone_status = "complete" if len(visited_cells) == len(zone.cells) else "in_progress"
     zones = dict(next_state.zones)
-    zones[zone.zone_id] = _replace_zone(zone, status=zone_status, visited_cells=visited_cells)
+    zones[zone.zone_id] = msgspec.structs.replace(zone, status=zone_status, visited_cells=visited_cells)
 
     task = next_state.tasks[agent.current_task_id]
     tasks = dict(next_state.tasks)
-    tasks[task.task_id] = _replace_task(
+    tasks[task.task_id] = msgspec.structs.replace(
         task,
         status="complete" if zone_status == "complete" else "in_progress",
         visited_count=len(visited_cells),
     )
 
-    return _replace_state(next_state, zones=zones, tasks=tasks)
-
-
-def _replace_state(state: MissionState, **changes: object) -> MissionState:
-    return MissionState(
-        mission_id=changes.get("mission_id", state.mission_id),
-        mission_status=changes.get("mission_status", state.mission_status),
-        agents=changes.get("agents", state.agents),
-        zones=changes.get("zones", state.zones),
-        tasks=changes.get("tasks", state.tasks),
-        completed_tick=changes.get("completed_tick", state.completed_tick),
-    )
-
-
-def _replace_agent(agent: AgentState, **changes: object) -> AgentState:
-    return AgentState(
-        agent_id=changes.get("agent_id", agent.agent_id),
-        display_name=changes.get("display_name", agent.display_name),
-        position=changes.get("position", agent.position),
-        current_task_id=changes.get("current_task_id", agent.current_task_id),
-        current_zone_id=changes.get("current_zone_id", agent.current_zone_id),
-        authority_epoch=changes.get("authority_epoch", agent.authority_epoch),
-        link_status=changes.get("link_status", agent.link_status),
-        last_seen_tick=changes.get("last_seen_tick", agent.last_seen_tick),
-        battery_pct=changes.get("battery_pct", agent.battery_pct),
-    )
-
-
-def _replace_zone(zone: ZoneState, **changes: object) -> ZoneState:
-    return ZoneState(
-        zone_id=changes.get("zone_id", zone.zone_id),
-        display_name=changes.get("display_name", zone.display_name),
-        origin=changes.get("origin", zone.origin),
-        cell_size=changes.get("cell_size", zone.cell_size),
-        grid=changes.get("grid", zone.grid),
-        cells=changes.get("cells", zone.cells),
-        owner_agent_id=changes.get("owner_agent_id", zone.owner_agent_id),
-        status=changes.get("status", zone.status),
-        visited_cells=changes.get("visited_cells", zone.visited_cells),
-    )
-
-
-def _replace_task(task: TaskState, **changes: object) -> TaskState:
-    return TaskState(
-        task_id=changes.get("task_id", task.task_id),
-        zone_id=changes.get("zone_id", task.zone_id),
-        owner_agent_id=changes.get("owner_agent_id", task.owner_agent_id),
-        status=changes.get("status", task.status),
-        visited_count=changes.get("visited_count", task.visited_count),
-        total_cells=changes.get("total_cells", task.total_cells),
-    )
+    return msgspec.structs.replace(next_state, zones=zones, tasks=tasks)

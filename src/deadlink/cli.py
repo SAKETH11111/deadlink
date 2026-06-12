@@ -59,6 +59,14 @@ def _run(path: str, *, max_ticks: int, out: str, run_id: str | None) -> int:
     if max_ticks < 1:
         print("invalid max_ticks: must be >= 1", file=sys.stderr)
         return 1
+    if run_id is not None and (not run_id or ":" in run_id):
+        print("invalid run-id: must be non-empty and contain no ':'", file=sys.stderr)
+        return 1
+
+    out_path = Path(out)
+    if not out_path.name:
+        print("invalid --out path", file=sys.stderr)
+        return 1
 
     try:
         contract = load_mission_contract(path)
@@ -66,7 +74,6 @@ def _run(path: str, *, max_ticks: int, out: str, run_id: str | None) -> int:
         print(str(exc), file=sys.stderr)
         return 1
 
-    out_path = Path(out)
     tmp_path = out_path.with_name(f".{out_path.name}.tmp")
     try:
         if tmp_path.exists():

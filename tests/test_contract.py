@@ -106,10 +106,20 @@ def test_hash_field_set_is_pinned() -> None:
     assert set(MissionContract.__struct_fields__) == set(HASHED_CONTRACT_FIELDS) | set(DERIVED_CONTRACT_FIELDS)
 
 
-def test_zone_geometry_participates_in_canonical_hash(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda raw: raw["zones"][0].__setitem__("cell_size", 2.0),
+        lambda raw: raw["zones"][0]["origin"].__setitem__("x", 1.0),
+        lambda raw: raw["zones"][0]["grid"].__setitem__("cols", 1),
+    ],
+)
+def test_zone_geometry_participates_in_canonical_hash(tmp_path: Path, mutation: object) -> None:
     raw = json.loads(MISSION.read_text())
     changed = tmp_path / "geometry_changed.json"
-    raw["zones"][0]["cell_size"] = 2.0
+    mutation(raw)
+    if len(raw["zones"][0]["cells"]) != raw["zones"][0]["grid"]["cols"] * raw["zones"][0]["grid"]["rows"]:
+        raw["zones"][0]["cells"] = raw["zones"][0]["cells"][: raw["zones"][0]["grid"]["cols"]]
     changed.write_text(json.dumps(raw))
 
     assert canonical_contract_hash(load_mission_contract(MISSION)) != canonical_contract_hash(

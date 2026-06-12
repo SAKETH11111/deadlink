@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import subprocess
 import sys
 from pathlib import Path
@@ -43,8 +44,21 @@ def test_reducer_fold_reconstructs_progress_without_driver_imports(tmp_path: Pat
     for event in read_jsonl(log_path):
         state = reduce(state, event)
 
-    assert "deadlink.drivers" not in Path(state_module.__file__).read_text()
-    assert "deadlink.drivers" not in Path(jsonl_module.__file__).read_text()
+    assert _imported_modules(Path(state_module.__file__)) <= {
+        "__future__",
+        "typing",
+        "msgspec",
+        "deadlink.core.contract",
+        "deadlink.core.coverage",
+        "deadlink.core.events",
+    }
+    assert _imported_modules(Path(jsonl_module.__file__)) <= {
+        "__future__",
+        "collections.abc",
+        "pathlib",
+        "msgspec",
+        "deadlink.core.events",
+    }
     assert state.mission_status == "complete"
     assert {zone_id: zone.status for zone_id, zone in state.zones.items()} == {
         "zone-a": "complete",
@@ -56,3 +70,14 @@ def test_reducer_fold_reconstructs_progress_without_driver_imports(tmp_path: Pat
         "task-zone-b": 3,
         "task-zone-c": 3,
     }
+
+
+def _imported_modules(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(), filename=str(path))
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            modules.add(node.module)
+    return modules
