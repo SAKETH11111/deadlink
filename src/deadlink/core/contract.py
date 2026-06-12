@@ -29,6 +29,11 @@ class Point(msgspec.Struct, forbid_unknown_fields=True):
     y: float
 
 
+class GridSpec(msgspec.Struct, forbid_unknown_fields=True):
+    cols: int
+    rows: int
+
+
 class AgentSpec(msgspec.Struct, forbid_unknown_fields=True):
     id: str
     display_name: str
@@ -38,6 +43,9 @@ class AgentSpec(msgspec.Struct, forbid_unknown_fields=True):
 class ZoneSpec(msgspec.Struct, forbid_unknown_fields=True):
     id: str
     display_name: str
+    origin: Point
+    cell_size: float
+    grid: GridSpec
     cells: list[str]
 
 
@@ -134,6 +142,13 @@ def _validate_contract(contract: MissionContract) -> None:
 
     for zone in contract.zones:
         _require(zone.cells, f"zone {zone.id} must contain at least one cell")
+        _require(zone.cell_size > 0, f"invalid zone {zone.id} cell_size")
+        _require(zone.grid.cols > 0, f"invalid zone {zone.id} grid.cols")
+        _require(zone.grid.rows > 0, f"invalid zone {zone.id} grid.rows")
+        _require(
+            len(zone.cells) == zone.grid.cols * zone.grid.rows,
+            f"zone {zone.id} cells length must match grid",
+        )
         _unique_ids(iter(zone.cells), f"cell in zone {zone.id}")
 
     for task in contract.tasks:
