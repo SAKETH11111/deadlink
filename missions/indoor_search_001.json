@@ -29,16 +29,25 @@
     {
       "id": "zone-a",
       "display_name": "Zone A",
+      "origin": {"x": 0, "y": 0},
+      "cell_size": 1.0,
+      "grid": {"cols": 3, "rows": 1},
       "cells": ["a1", "a2", "a3"]
     },
     {
       "id": "zone-b",
       "display_name": "Zone B",
+      "origin": {"x": 4, "y": 0},
+      "cell_size": 1.0,
+      "grid": {"cols": 3, "rows": 1},
       "cells": ["b1", "b2", "b3"]
     },
     {
       "id": "zone-c",
       "display_name": "Zone C",
+      "origin": {"x": 8, "y": 0},
+      "cell_size": 1.0,
+      "grid": {"cols": 3, "rows": 1},
       "cells": ["c1", "c2", "c3"]
     }
   ],

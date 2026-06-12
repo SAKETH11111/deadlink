@@ -106,3 +106,7 @@ def create_mission_created(*, builder: EventBuilder, contract: MissionContract) 
 def validate_event_type(event_type: str) -> None:
     if event_type not in INITIAL_EVENT_TYPES:
         raise EventValidationError(f"unregistered event type: {event_type}")
+
+
+def event_reference(event: MissionEvent) -> str:
+    return f"{event.run_id}:{event.seq}"

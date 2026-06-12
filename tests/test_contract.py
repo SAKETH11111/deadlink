@@ -29,6 +29,11 @@ def test_loads_canonical_mission_with_explicit_state_shapes() -> None:
     assert contract.initial_zone_state["zone-b"].owner_agent_id == "scout-2"
     assert contract.initial_zone_state["zone-b"].status == "assigned"
     assert contract.initial_task_state["task-zone-b"].status == "assigned"
+    assert contract.zones[0].origin.x == 0
+    assert contract.zones[0].origin.y == 0
+    assert contract.zones[0].cell_size == 1.0
+    assert contract.zones[0].grid.cols == 3
+    assert contract.zones[0].grid.rows == 1
 
 
 @pytest.mark.parametrize(
@@ -41,6 +46,8 @@ def test_loads_canonical_mission_with_explicit_state_shapes() -> None:
         ("missing_required_field.json", "missing required field"),
         ("invalid_policy_value.json", "invalid failure_policy.reassignment"),
         ("malformed.json", "malformed JSON"),
+        ("grid_cell_mismatch.json", "cells length must match grid"),
+        ("invalid_cell_size.json", "invalid zone zone-a cell_size"),
     ],
 )
 def test_invalid_contracts_fail_with_named_violations(fixture: str, expected: str) -> None:
@@ -97,3 +104,14 @@ def test_hash_field_set_is_pinned() -> None:
         "initial_assignments",
     )
     assert set(MissionContract.__struct_fields__) == set(HASHED_CONTRACT_FIELDS) | set(DERIVED_CONTRACT_FIELDS)
+
+
+def test_zone_geometry_participates_in_canonical_hash(tmp_path: Path) -> None:
+    raw = json.loads(MISSION.read_text())
+    changed = tmp_path / "geometry_changed.json"
+    raw["zones"][0]["cell_size"] = 2.0
+    changed.write_text(json.dumps(raw))
+
+    assert canonical_contract_hash(load_mission_contract(MISSION)) != canonical_contract_hash(
+        load_mission_contract(changed)
+    )
